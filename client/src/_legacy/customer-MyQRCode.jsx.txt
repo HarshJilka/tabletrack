@@ -1,0 +1,16 @@
+import { useAuth } from '../../context/AuthContext'
+import QRCodeDisplay from '../../components/QRCodeDisplay'
+
+export default function MyQRCode() {
+  const { user } = useAuth()
+
+  return (
+    <div className="max-w-md card flex flex-col items-center text-center">
+      <h3 className="font-semibold text-slate-800 mb-1">Your Meal Check-in Code</h3>
+      <p className="text-sm text-slate-500 mb-6">
+        Show this code at the counter, or scan it yourself, when you arrive for lunch or dinner.
+      </p>
+      <QRCodeDisplay token={user?.qrToken} size={220} />
+    </div>
+  )
+}

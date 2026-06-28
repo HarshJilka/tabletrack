@@ -1,0 +1,103 @@
+// In-memory mock dataset. Replace each service's internals with real axios
+// calls to your Express API once the backend is ready — the function
+// signatures below are designed to match the planned REST endpoints
+// (see /server/src/routes) so swapping is a drop-in change.
+
+export const MEAL_WINDOWS = {
+  lunch: { start: '11:00', end: '15:00' },
+  dinner: { start: '19:00', end: '22:30' },
+}
+
+export let users = [
+  {
+    id: 'u-admin-1',
+    name: 'Restaurant Admin',
+    email: 'admin@tabletrack.com',
+    password: 'admin123',
+    role: 'admin',
+    phone: '+91 90000 00000',
+  },
+  {
+    id: 'u-cust-1',
+    name: 'Aarav Mehta',
+    email: 'aarav@example.com',
+    password: 'customer123',
+    role: 'customer',
+    phone: '+91 98765 43210',
+    qrToken: 'qr-aarav-mehta-001',
+    isActive: true,
+    joinedOn: '2026-01-12',
+  },
+  {
+    id: 'u-cust-2',
+    name: 'Priya Sharma',
+    email: 'priya@example.com',
+    password: 'customer123',
+    role: 'customer',
+    phone: '+91 91234 56789',
+    qrToken: 'qr-priya-sharma-002',
+    isActive: true,
+    joinedOn: '2026-02-03',
+  },
+  {
+    id: 'u-cust-3',
+    name: 'Rohan Gupta',
+    email: 'rohan@example.com',
+    password: 'customer123',
+    role: 'customer',
+    phone: '+91 99887 76655',
+    qrToken: 'qr-rohan-gupta-003',
+    isActive: true,
+    joinedOn: '2026-03-20',
+  },
+]
+
+export let subscriptions = [
+  {
+    id: 'sub-1',
+    customerId: 'u-cust-1',
+    planType: 'monthly',
+    mealAllowance: 'both',
+    startDate: '2026-06-01',
+    endDate: '2026-06-30',
+    mealsRemaining: null,
+    status: 'active',
+    paymentStatus: 'paid',
+    amount: 4500,
+  },
+  {
+    id: 'sub-2',
+    customerId: 'u-cust-2',
+    planType: 'weekly',
+    mealAllowance: 'lunch',
+    startDate: '2026-06-15',
+    endDate: '2026-06-21',
+    mealsRemaining: 3,
+    status: 'active',
+    paymentStatus: 'pending',
+    amount: 900,
+  },
+  {
+    id: 'sub-3',
+    customerId: 'u-cust-3',
+    planType: 'monthly',
+    mealAllowance: 'dinner',
+    startDate: '2026-05-01',
+    endDate: '2026-05-31',
+    mealsRemaining: 0,
+    status: 'expired',
+    paymentStatus: 'overdue',
+    amount: 4000,
+  },
+]
+
+export let attendanceLogs = [
+  { id: 'att-1', customerId: 'u-cust-1', date: '2026-06-19', checkInTime: '2026-06-19T12:05:00', checkOutTime: '2026-06-19T13:00:00', mealType: 'lunch' },
+  { id: 'att-2', customerId: 'u-cust-1', date: '2026-06-19', checkInTime: '2026-06-19T19:45:00', checkOutTime: null, mealType: 'dinner' },
+  { id: 'att-3', customerId: 'u-cust-2', date: '2026-06-19', checkInTime: '2026-06-19T11:50:00', checkOutTime: '2026-06-19T12:40:00', mealType: 'lunch' },
+  { id: 'att-4', customerId: 'u-cust-1', date: '2026-06-18', checkInTime: '2026-06-18T12:15:00', checkOutTime: '2026-06-18T13:05:00', mealType: 'lunch' },
+  { id: 'att-5', customerId: 'u-cust-3', date: '2026-06-17', checkInTime: '2026-06-17T20:00:00', checkOutTime: null, mealType: 'dinner' },
+]
+
+let idCounter = 100
+export const nextId = (prefix) => `${prefix}-${idCounter++}`

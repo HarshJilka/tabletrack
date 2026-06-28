@@ -1,0 +1,54 @@
+import { useEffect, useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { getAttendanceForCustomer } from '../../services/attendanceService'
+import { formatDate, formatDateTime } from '../../utils/dateUtils'
+
+export default function AttendanceHistory() {
+  const { user } = useAuth()
+  const [attendance, setAttendance] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getAttendanceForCustomer(user.id).then((data) => {
+      setAttendance(data)
+      setLoading(false)
+    })
+  }, [user.id])
+
+  return (
+    <div className="card overflow-x-auto">
+      <h3 className="font-semibold text-slate-800 mb-4">Your Attendance History</h3>
+      {loading ? (
+        <p className="text-slate-500">Loading…</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-2 pr-4">Date</th>
+              <th className="py-2 pr-4">Meal</th>
+              <th className="py-2 pr-4">Check-in</th>
+              <th className="py-2 pr-4">Check-out</th>
+            </tr>
+          </thead>
+          <tbody>
+            {attendance.map((a) => (
+              <tr key={a.id} className="border-b border-slate-100 last:border-0">
+                <td className="py-2 pr-4">{formatDate(a.date)}</td>
+                <td className="py-2 pr-4 capitalize">{a.mealType}</td>
+                <td className="py-2 pr-4 text-slate-500">{formatDateTime(a.checkInTime)}</td>
+                <td className="py-2 pr-4 text-slate-500">{a.checkOutTime ? formatDateTime(a.checkOutTime) : '—'}</td>
+              </tr>
+            ))}
+            {attendance.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-6 text-center text-slate-400">
+                  No attendance recorded yet. Scan your QR code at the restaurant to get started.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}

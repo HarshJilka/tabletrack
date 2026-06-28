@@ -1,0 +1,78 @@
+import { useEffect, useState } from 'react'
+import { getAllSubscriptions, markPayment } from '../../services/subscriptionService'
+import { getCustomers } from '../../services/customerService'
+import { formatDate } from '../../utils/dateUtils'
+import StatusBadge from '../../components/StatusBadge'
+
+export default function Subscriptions() {
+  const [subscriptions, setSubscriptions] = useState([])
+  const [customers, setCustomers] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  function load() {
+    Promise.all([getAllSubscriptions(), getCustomers()]).then(([s, c]) => {
+      setSubscriptions(s)
+      setCustomers(c)
+      setLoading(false)
+    })
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  async function togglePayment(sub) {
+    const next = sub.paymentStatus === 'paid' ? 'pending' : 'paid'
+    await markPayment(sub.id, next)
+    load()
+  }
+
+  return (
+    <div className="card overflow-x-auto">
+      {loading ? (
+        <p className="text-slate-500">Loading subscriptions…</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-2 pr-4">Customer</th>
+              <th className="py-2 pr-4">Plan</th>
+              <th className="py-2 pr-4">Meals</th>
+              <th className="py-2 pr-4">Period</th>
+              <th className="py-2 pr-4">Amount</th>
+              <th className="py-2 pr-4">Status</th>
+              <th className="py-2 pr-4">Payment</th>
+              <th className="py-2 pr-4 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {subscriptions.map((s) => {
+              const customer = customers.find((c) => c.id === s.customerId)
+              return (
+                <tr key={s.id} className="border-b border-slate-100 last:border-0">
+                  <td className="py-3 pr-4 font-medium text-slate-700">{customer?.name || 'Unknown'}</td>
+                  <td className="py-3 pr-4 capitalize">{s.planType}</td>
+                  <td className="py-3 pr-4 capitalize">{s.mealAllowance}</td>
+                  <td className="py-3 pr-4 text-slate-500">{formatDate(s.startDate)} – {formatDate(s.endDate)}</td>
+                  <td className="py-3 pr-4">₹{s.amount}</td>
+                  <td className="py-3 pr-4"><StatusBadge status={s.status} /></td>
+                  <td className="py-3 pr-4"><StatusBadge status={s.paymentStatus} /></td>
+                  <td className="py-3 pr-4 text-right">
+                    <button onClick={() => togglePayment(s)} className="text-sm text-brand-600 hover:underline">
+                      Mark as {s.paymentStatus === 'paid' ? 'pending' : 'paid'}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+            {subscriptions.length === 0 && (
+              <tr>
+                <td colSpan={8} className="py-6 text-center text-slate-400">No subscriptions yet.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
