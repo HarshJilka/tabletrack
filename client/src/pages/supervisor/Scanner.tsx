@@ -88,7 +88,7 @@ export default function SupervisorScanner() {
     setErrorMsg('')
     setUiState('scanning')
     // Re-render the scanner in case it was cleared
-    scannerRef.current?.render(handleScanSuccess, () => { }).catch(() => { })
+    scannerRef.current?.render(handleScanSuccess, () => { })
   }
 
   return (
