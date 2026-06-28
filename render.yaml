@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: tabletrack-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: QR_ROTATION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tabletrack-db
+          property: connectionString
+      - key: CLIENT_URL
+        value: https://tabletrack.vercel.app
+
+databases:
+  - name: tabletrack-db
+    databaseName: tabletrack
+    plan: free
