@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Html5QrcodeScanner } from 'html5-qrcode'
-import { CheckCircle2, XCircle, AlertCircle, Utensils } from 'lucide-react'
+import { Html5Qrcode } from 'html5-qrcode'
+import { CheckCircle2, XCircle, AlertCircle, Utensils, Camera } from 'lucide-react'
 import { recordSelfCheckIn, recordSelfCheckInDemo, currentMealType } from '../../services/attendanceService'
 import { useAuth } from '../../context/AuthContext'
 import type { CustomerUser, MealType } from '../../types'
@@ -21,66 +21,92 @@ interface ScanResult {
 export default function Scanner() {
   const { user } = useAuth()
   const customer = user as CustomerUser
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null)
 
-  const [result, setResult]                   = useState<ScanResult | null>(null)
-  const [busy, setBusy]                       = useState(false)
+  const qrRef   = useRef<Html5Qrcode | null>(null)
+  const busyRef  = useRef(false)   // gate to prevent double-processing
+
+  const [result,             setResult]             = useState<ScanResult | null>(null)
+  const [busy,               setBusy]               = useState(false)
+  const [cameraError,        setCameraError]        = useState<string | null>(null)
   const [showDuplicateModal, setShowDuplicateModal] = useState(false)
-  const [showClaimModal, setShowClaimModal]   = useState(false)
+  const [showClaimModal,     setShowClaimModal]     = useState(false)
 
-  // Demo modal state
   const activeMeal = currentMealType()
   const [demoMeal, setDemoMeal] = useState<MealType>(activeMeal ?? 'lunch')
 
+  // Start back-camera directly — no file-picker UI
   useEffect(() => {
-    const scanner = new Html5QrcodeScanner(SCANNER_ELEMENT_ID, { fps: 10, qrbox: 250 }, false)
-    scannerRef.current = scanner
-    scanner.render(handleScanSuccess, () => { /* ignore per-frame failures */ })
-    return () => { scanner.clear().catch(() => {}) }
+    const qr = new Html5Qrcode(SCANNER_ELEMENT_ID)
+    qrRef.current = qr
+
+    qr.start(
+      { facingMode: 'environment' },          // back camera on mobile
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      (decodedText) => {
+        if (!busyRef.current) handleScanSuccess(decodedText)
+      },
+      () => { /* ignore per-frame decode failures */ },
+    ).catch(() => {
+      // Fallback: try any available camera
+      qr.start(
+        { facingMode: 'user' },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        (decodedText) => {
+          if (!busyRef.current) handleScanSuccess(decodedText)
+        },
+        () => {},
+      ).catch(() => {
+        setCameraError('Camera access denied. Please allow camera permission in your browser/app settings and reload.')
+      })
+    })
+
+    return () => { qr.stop().catch(() => {}) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function setProcessing(val: boolean) {
+    busyRef.current = val
+    setBusy(val)
+  }
 
   function openDemoModal() {
     setDemoMeal(currentMealType() ?? 'lunch')
     setShowClaimModal(true)
   }
 
-  // Demo path — skips QR validation, uses whichever shift the user picked
   async function handleDemoClaim() {
-    if (busy) return
+    if (busyRef.current) return
     setShowClaimModal(false)
-    setBusy(true)
+    setProcessing(true)
     try {
       const record = await recordSelfCheckInDemo(demoMeal)
       setResult({ type: 'success', message: `Checked in for ${record.mealType} ✓` })
     } catch (err) {
       const msg = (err as Error).message
-      if (msg.includes('Already checked in')) {
+      if (msg.includes('Already checked in') || msg.includes('already')) {
         setShowDuplicateModal(true)
       } else {
         setResult({ type: 'error', message: msg })
       }
     } finally {
-      setBusy(false)
+      setProcessing(false)
     }
   }
 
-  // Real path — sends the scanned QR token to the server for validation
   async function handleScanSuccess(decodedText: string) {
-    if (busy) return
-    setBusy(true)
+    setProcessing(true)
     try {
       const record = await recordSelfCheckIn(decodedText.trim())
       setResult({ type: 'success', message: `Checked in for ${record.mealType} ✓` })
     } catch (err) {
       const msg = (err as Error).message
-      if (msg.includes('Already checked in')) {
+      if (msg.includes('Already checked in') || msg.includes('already')) {
         setShowDuplicateModal(true)
       } else {
         setResult({ type: 'error', message: msg })
       }
     } finally {
-      setBusy(false)
+      setProcessing(false)
     }
   }
 
@@ -90,8 +116,6 @@ export default function Scanner() {
       {showClaimModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="card w-full max-w-sm shadow-2xl">
-
-            {/* Header */}
             <div className="flex justify-center mb-4">
               <div className="w-14 h-14 rounded-full bg-brand-100 flex items-center justify-center">
                 <Utensils size={26} className="text-brand-600" />
@@ -100,11 +124,10 @@ export default function Scanner() {
             <h3 className="font-semibold text-slate-800 text-lg text-center mb-0.5">Claim Your Meal</h3>
             <p className="text-xs text-center text-slate-400 mb-5">Demo — bypasses QR scan</p>
 
-            {/* Meal shift radio buttons */}
             <p className="label mb-2">Select Meal Shift</p>
             <div className="space-y-2 mb-6">
               {MEAL_OPTIONS.map((opt) => {
-                const isActive = opt.value === activeMeal
+                const isActive   = opt.value === activeMeal
                 const isSelected = opt.value === demoMeal
                 return (
                   <label
@@ -138,7 +161,6 @@ export default function Scanner() {
               })}
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3">
               <button
                 type="button"
@@ -180,7 +202,7 @@ export default function Scanner() {
         </div>
       )}
 
-      {/* ── Floating demo FAB — remove before go-live ── */}
+      {/* ── Demo FAB ── */}
       <button
         type="button"
         onClick={openDemoModal}
@@ -193,11 +215,29 @@ export default function Scanner() {
       {/* ── Page ── */}
       <div className="max-w-lg space-y-4">
         <div className="card">
-          <h3 className="font-semibold text-slate-800 mb-1">Scan the Restaurant's QR Code</h3>
+          <div className="flex items-center gap-2 mb-1">
+            <Camera size={18} className="text-brand-600" />
+            <h3 className="font-semibold text-slate-800">Scan the Restaurant's QR Code</h3>
+          </div>
           <p className="text-sm text-slate-500 mb-4">
-            Point your camera at the QR code displayed at the front desk to claim your meal.
+            Point your back camera at the QR code at the front desk to claim your meal.
           </p>
-          <div id={SCANNER_ELEMENT_ID} />
+
+          {cameraError ? (
+            <div className="flex items-start gap-2 text-red-600 text-sm p-3 bg-red-50 rounded-lg">
+              <XCircle size={16} className="mt-0.5 shrink-0" />
+              {cameraError}
+            </div>
+          ) : (
+            <div
+              id={SCANNER_ELEMENT_ID}
+              className="w-full overflow-hidden rounded-lg bg-black"
+            />
+          )}
+
+          {busy && (
+            <p className="text-xs text-slate-400 mt-2 text-center">Processing…</p>
+          )}
         </div>
 
         {result && (

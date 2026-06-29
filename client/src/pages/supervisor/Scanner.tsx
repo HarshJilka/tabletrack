@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Html5QrcodeScanner } from 'html5-qrcode'
-import { CheckCircle2, XCircle, Users, X } from 'lucide-react'
+import { Html5Qrcode } from 'html5-qrcode'
+import { CheckCircle2, XCircle, Users, X, Camera } from 'lucide-react'
 import { recordBulkSupervisorCheckIn, recordBulkSupervisorCheckInDemo, currentMealType } from '../../services/attendanceService'
 import { useAuth } from '../../context/AuthContext'
 import type { MealType } from '../../types'
@@ -18,39 +18,56 @@ type UIState = 'scanning' | 'modal' | 'success' | 'error'
 export default function SupervisorScanner() {
   const { user: _user } = useAuth()
 
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null)
-  const modalOpenRef = useRef(false)  // prevents double-trigger while modal is open
+  const qrRef       = useRef<Html5Qrcode | null>(null)
+  const modalOpenRef = useRef(false)   // gates the scan callback while modal is up
 
-  // null = demo mode (no real scan); string = the scanned QR token to send to server
+  // null = demo path (no real QR scan); string = scanned QR token to send server
   const [scannedToken, setScannedToken] = useState<string | null>(null)
 
-  const [uiState, setUiState] = useState<UIState>('scanning')
-  const [scanError, setScanError] = useState<string | null>(null)
-  const [submitBusy, setSubmitBusy] = useState(false)
-  const [successMsg, setSuccessMsg] = useState('')
-  const [errorMsg, setErrorMsg] = useState('')
+  const [uiState,      setUiState]      = useState<UIState>('scanning')
+  const [cameraError,  setCameraError]  = useState<string | null>(null)
+  const [submitBusy,   setSubmitBusy]   = useState(false)
+  const [successMsg,   setSuccessMsg]   = useState('')
+  const [errorMsg,     setErrorMsg]     = useState('')
 
-  // Modal form fields — seed with current meal if detectable
+  // Modal form fields
   const [selectedMeal, setSelectedMeal] = useState<MealType>(currentMealType() ?? 'lunch')
-  const [quantity, setQuantity] = useState(1)
+  const [quantity,     setQuantity]     = useState(1)
 
-  // Mount scanner once; keep it running the whole time the page is open
+  // Start the back-camera directly — no file-picker UI
   useEffect(() => {
-    const scanner = new Html5QrcodeScanner(SCANNER_ELEMENT_ID, { fps: 10, qrbox: 250 }, false)
-    scannerRef.current = scanner
-    scanner.render(handleScanSuccess, () => { /* ignore per-frame failures */ })
-    return () => { scanner.clear().catch(() => { }) }
+    const qr = new Html5Qrcode(SCANNER_ELEMENT_ID)
+    qrRef.current = qr
+
+    qr.start(
+      { facingMode: 'environment' },           // back camera on mobile
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      (decodedText) => {
+        if (!modalOpenRef.current) handleScanSuccess(decodedText)
+      },
+      () => { /* ignore per-frame decode failures */ },
+    ).catch(() => {
+      // Fallback: try any available camera
+      qr.start(
+        { facingMode: 'user' },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        (decodedText) => {
+          if (!modalOpenRef.current) handleScanSuccess(decodedText)
+        },
+        () => {},
+      ).catch(() => {
+        setCameraError('Camera access denied. Please allow camera permission in your browser/app settings and reload.')
+      })
+    })
+
+    return () => { qr.stop().catch(() => {}) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function handleScanSuccess(decodedText: string) {
-    // Gate: ignore while modal is open or a submit is in flight
+  function handleScanSuccess(decodedText: string) {
     if (modalOpenRef.current) return
-    setScanError(null)
-
-    // Store the raw token — server will validate it on submission
-    setScannedToken(decodedText.trim())
     modalOpenRef.current = true
+    setScannedToken(decodedText.trim())
     setSelectedMeal(currentMealType() ?? 'lunch')
     setQuantity(1)
     setUiState('modal')
@@ -64,9 +81,8 @@ export default function SupervisorScanner() {
   async function handleClaim() {
     setSubmitBusy(true)
     try {
-      // scannedToken === null means demo path (no real QR scan)
       await (scannedToken !== null
-        ? await recordBulkSupervisorCheckIn(selectedMeal, quantity, scannedToken)
+        ? recordBulkSupervisorCheckIn(selectedMeal, quantity, scannedToken)
         : recordBulkSupervisorCheckInDemo(selectedMeal, quantity))
 
       setSuccessMsg(
@@ -83,12 +99,10 @@ export default function SupervisorScanner() {
   }
 
   function handleReset() {
-    setScanError(null)
     setSuccessMsg('')
     setErrorMsg('')
     setUiState('scanning')
-    // Re-render the scanner in case it was cleared
-    scannerRef.current?.render(handleScanSuccess, () => { })
+    // Camera is still running — no need to restart it
   }
 
   return (
@@ -97,7 +111,6 @@ export default function SupervisorScanner() {
       {uiState === 'modal' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="card w-full max-w-sm shadow-2xl">
-            {/* Header */}
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="font-semibold text-slate-800 text-lg">Claim Tiffins</p>
@@ -128,7 +141,7 @@ export default function SupervisorScanner() {
               </select>
             </div>
 
-            {/* Quantity */}
+            {/* Quantity stepper */}
             <div className="mb-5">
               <label className="label" htmlFor="sup-qty-input">Quantity</label>
               <div className="flex items-center gap-3">
@@ -167,7 +180,6 @@ export default function SupervisorScanner() {
               </p>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3">
               <button
                 type="button"
@@ -190,12 +202,12 @@ export default function SupervisorScanner() {
         </div>
       )}
 
-      {/* ── Floating demo button — always visible, remove before go-live ── */}
+      {/* ── Demo FAB — always visible while scanning ── */}
       {uiState === 'scanning' && (
         <button
           type="button"
           onClick={() => {
-            setScannedToken(null)   // demo path — no QR token
+            setScannedToken(null)   // demo = no QR token
             modalOpenRef.current = true
             setSelectedMeal(currentMealType() ?? 'lunch')
             setQuantity(1)
@@ -210,22 +222,30 @@ export default function SupervisorScanner() {
 
       {/* ── Main page ── */}
       <div className="max-w-lg space-y-4">
-        {/* Scanner card — always rendered so the camera mounts once */}
+        {/* Scanner card — camera div stays mounted for entire page lifetime */}
         <div className={`card ${uiState !== 'scanning' && uiState !== 'modal' ? 'opacity-50 pointer-events-none' : ''}`}>
-          <h3 className="font-semibold text-slate-800 mb-1">Scan the Restaurant's QR Code</h3>
+          <div className="flex items-center gap-2 mb-1">
+            <Camera size={18} className="text-brand-600" />
+            <h3 className="font-semibold text-slate-800">Scan the Restaurant's QR Code</h3>
+          </div>
           <p className="text-sm text-slate-500 mb-4">
-            Point your camera at the QR code to open the bulk tiffin form.
+            Point your back camera at the QR code to open the bulk tiffin form.
           </p>
-          <div id={SCANNER_ELEMENT_ID} />
-          {scanError && (
-            <div className="mt-3 flex items-start gap-2 text-red-600 text-sm">
+
+          {cameraError ? (
+            <div className="flex items-start gap-2 text-red-600 text-sm p-3 bg-red-50 rounded-lg">
               <XCircle size={16} className="mt-0.5 shrink-0" />
-              {scanError}
+              {cameraError}
             </div>
+          ) : (
+            <div
+              id={SCANNER_ELEMENT_ID}
+              className="w-full overflow-hidden rounded-lg bg-black"
+            />
           )}
         </div>
 
-        {/* Success result */}
+        {/* Success */}
         {uiState === 'success' && (
           <div className="card flex flex-col items-center gap-4 text-center border-emerald-200">
             <CheckCircle2 size={40} className="text-emerald-500" />
@@ -236,7 +256,7 @@ export default function SupervisorScanner() {
           </div>
         )}
 
-        {/* Error result */}
+        {/* Error */}
         {uiState === 'error' && (
           <div className="card flex flex-col items-center gap-4 text-center border-red-200">
             <XCircle size={40} className="text-red-500" />
