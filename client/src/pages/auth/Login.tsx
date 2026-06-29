@@ -70,10 +70,9 @@ export default function Login() {
       <div className="mt-6 pt-5 border-t border-slate-200 text-xs text-slate-400 space-y-1">
         <p className="font-medium text-slate-500 mb-2">Demo credentials — click to fill</p>
         {[
-          { label: 'Admin',               email: 'admin@tabletrack.com',  pw: 'admin123'       },
-          { label: 'Supervisor',          email: 'raj@tabletrack.com',    pw: 'supervisor123'  },
-          { label: 'Customer (approved)', email: 'aarav@example.com',     pw: 'customer123'    },
-          { label: 'Customer (pending)',  email: 'sneha@example.com',     pw: 'customer123'    },
+          { label: 'Admin',      email: 'admin@tabletrack.com',      pw: 'admin@123'      },
+          { label: 'Supervisor', email: 'supervisor@tabletrack.com', pw: 'supervisor@123' },
+          { label: 'Customer',   email: 'customer@tabletrack.com',   pw: 'customer@123'   },
         ].map(({ label, email, pw }) => (
           <button
             key={email}
